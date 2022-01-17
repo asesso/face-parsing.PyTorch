@@ -3,9 +3,9 @@
 
 from logger import setup_logger
 from model import BiSeNet
-
+import sys
 import torch
-
+import glob
 import os
 import os.path as osp
 import numpy as np
@@ -13,7 +13,9 @@ from PIL import Image
 import torchvision.transforms as transforms
 import cv2
 
-def vis_parsing_maps(im, parsing_anno, stride, save_im=False, save_path='vis_results/parsing_map_on_im.jpg'):
+CD=os.path.dirname(os.path.abspath(__file__))
+
+def vis_parsing_maps(im, parsing_anno, stride, save_im=False, save_path=CD+'/vis_results/parsing_map_on_im.jpg'):
     # Colors for all 20 parts
     part_colors = [[255, 0, 0], [255, 85, 0], [255, 170, 0],
                    [255, 0, 85], [255, 0, 170],
@@ -39,7 +41,7 @@ def vis_parsing_maps(im, parsing_anno, stride, save_im=False, save_path='vis_res
 
     vis_parsing_anno_color = vis_parsing_anno_color.astype(np.uint8)
     # print(vis_parsing_anno_color.shape, vis_im.shape)
-    vis_im = cv2.addWeighted(cv2.cvtColor(vis_im, cv2.COLOR_RGB2BGR), 0.4, vis_parsing_anno_color, 0.6, 0)
+    vis_im = cv2.addWeighted(cv2.cvtColor(vis_im, cv2.COLOR_RGB2BGR), 0.0, vis_parsing_anno_color, 1.0, 0)
 
     # Save result or not
     if save_im:
@@ -48,7 +50,7 @@ def vis_parsing_maps(im, parsing_anno, stride, save_im=False, save_path='vis_res
 
     # return vis_im
 
-def evaluate(respth='./res/test_res', dspth='./data', cp='model_final_diss.pth'):
+def evaluate(respth=CD+'/res/test_res', dspth=['./data'], cp='model_final_diss.pth'):
 
     if not os.path.exists(respth):
         os.makedirs(respth)
@@ -56,7 +58,7 @@ def evaluate(respth='./res/test_res', dspth='./data', cp='model_final_diss.pth')
     n_classes = 19
     net = BiSeNet(n_classes=n_classes)
     net.cuda()
-    save_pth = osp.join('res/cp', cp)
+    save_pth = osp.join(CD+'/res/cp', cp)
     net.load_state_dict(torch.load(save_pth))
     net.eval()
 
@@ -65,8 +67,14 @@ def evaluate(respth='./res/test_res', dspth='./data', cp='model_final_diss.pth')
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
     ])
     with torch.no_grad():
-        for image_path in os.listdir(dspth):
-            img = Image.open(osp.join(dspth, image_path))
+        for image_path in dspth:
+            print(image_path)
+            remove=False
+            if osp.splitext(image_path)[-1] != '.jpg':
+                os.system( 'convert %s %s.jpg' % (image_path, image_path) )
+                image_path = image_path+'.jpg'
+                remove=True
+            img = Image.open( image_path )
             image = img.resize((512, 512), Image.BILINEAR)
             img = to_tensor(image)
             img = torch.unsqueeze(img, 0)
@@ -76,8 +84,10 @@ def evaluate(respth='./res/test_res', dspth='./data', cp='model_final_diss.pth')
             # print(parsing)
             print(np.unique(parsing))
 
-            vis_parsing_maps(image, parsing, stride=1, save_im=True, save_path=osp.join(respth, image_path))
-
+            save_file=osp.splitext(image_path)[0]+'.masks.jpg'
+            vis_parsing_maps(image, parsing, stride=1, save_im=True, save_path=save_file)
+            if remove:
+               os.system("rm -rf %s" % image_path)
 
 
 
@@ -85,6 +95,7 @@ def evaluate(respth='./res/test_res', dspth='./data', cp='model_final_diss.pth')
 
 
 if __name__ == "__main__":
-    evaluate(dspth='/home/zll/data/CelebAMask-HQ/test-img', cp='79999_iter.pth')
+    files = glob.glob(sys.argv[1].replace("#","?"))
+    evaluate(dspth=files , cp='79999_iter.pth')
 
 
