@@ -1,0 +1,8 @@
+#!/bin/bash
+
+CD=$(dirname $(readlink -f $BASH_SOURCE))
+echo $CD
+
+source $CD/env/bin/activate
+$CD/env/bin/python3 $CD/test.py $@
+
